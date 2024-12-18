@@ -5,5 +5,5 @@
 Unpack official foundry.zip file and name "FoundryVTT"
 create folder named data
 
-create two .env files:
+create one .env file:
 - tunnel.env (to TUNNEL_TOKEN="secret")
