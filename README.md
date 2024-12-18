@@ -5,5 +5,9 @@
 Unpack official foundry.zip file and name "FoundryVTT"
 create folder named data
 
-create one .env file:
-- tunnel.env (to TUNNEL_TOKEN="secret")
+create two .env file:
+- tunnel.env 
+    - TUNNEL_TOKEN="secret"
+- duplicati.env
+    - SETTINGS_ENCRYPTION_KEY=whateverseemsgood
+    - DUPLICATI__WEBSERVICE_PASSWORD=Yourpassword

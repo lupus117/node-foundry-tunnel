@@ -20,20 +20,19 @@ services:
       - ./data:/data
     command: node FoundryVTT/resources/app/main.js --dataPath=/data
   duplicati:
+    env_file: duplicati.env
     image: lscr.io/linuxserver/duplicati:latest
     container_name: duplicati
     environment:
       - PUID=1000
       - PGID=1000
       - TZ=Etc/UTC
-      - SETTINGS_ENCRYPTION_KEY=
       - CLI_ARGS= #optional
-      - DUPLICATI__WEBSERVICE_PASSWORD= #optional
     volumes:
       - /duplicaticonfig:/config
       - /backups:/backups
       - /data:/source
     ports:
-      - 8200:30001
+      - 30001:8200
     restart: unless-stopped
 
