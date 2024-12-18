@@ -30,8 +30,8 @@ services:
       - CLI_ARGS= #optional
     volumes:
       - /duplicaticonfig:/config
-      - /backups:/backups
-      - /data:/source
+      - ./backups:/backups
+      - ./data:/source
     ports:
       - 30001:8200
     restart: unless-stopped
