@@ -29,7 +29,7 @@ services:
       - TZ=Etc/UTC
       - CLI_ARGS= #optional
     volumes:
-      - /duplicaticonfig:/config
+      - ./duplicaticonfig:/config
       - ./backups:/backups
       - ./data:/source
     ports:
