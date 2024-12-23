@@ -10,7 +10,7 @@ parser.add_argument('session_title', type=str, help="Title for the transcription
 args = parser.parse_args()
 
 # Path to the directory containing the audio files
-tmpfiles = ".tmpfiles"
+tmpfiles = "/tmpfiles"
 audio_dir = "/audio"
 output_dir = "/transcripts"
 
