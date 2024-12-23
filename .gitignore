@@ -3,3 +3,6 @@
 *.env
 /duplicaticonfig
 /backups
+/audio
+/transcripts
+/config_whisper
