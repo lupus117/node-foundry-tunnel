@@ -68,3 +68,23 @@ If you ever need to use the restore files function, make sure that the foundry c
 
 After the initial setup, in my experience it should be no problem to run the subsequent backups while foundry is active. There will be a few warnings for files currently used by Foundry, however it seems those are files which you already have a backup of from the initial backup so its no issue. If you want to be 100% on a backup you can always take down the foundry container before backing up.
 
+
+#### Commands to help me
+
+get into the terminal of faster-whisper
+docker exec -it faster-whisper /bin/bash
+
+#### faster-whisper
+In case I wish to convert audio recordings from dnd sessions on with the craig bot, I get an audio file per participant in the call. I can then convert those into text using faster-whisper. doing this is somewhat more complex but I'll try and make it simple.
+
+##### Dev log
+Getting faster whisper working was difficult because I had to figure out how to run it as well as parse large files. If I wanted to upload long files, like is usual for dnd, It proved problematic as the memory filled up so fast and it was killed by linux before anything could happen. 
+
+I worked alongside my research partner (chatgpt) and used what I know of python, programming and docker to figure out a solution. What I arrived on is splitting the audio  file into smaller files. The first solution I came accross was using a python library to split it into several pieces. However that option did not work due to the large filesizes being loaded into memory. The goal is to have a lightwheight container after all that does not vaccuum all resources. 
+
+After research, using a stream with the FFMPEG library and cut it into smaller sizes as you process without loading it all seemed to do the trick. 
+
+The plan was to take all the mp3 files in a folder, one by one segment them, transcribe them, delete the segmented temp files and name them according to the desired session name + file name. The file name of the seperate .mp3 files will be the player name. 
+
+When it goes through and gives all the seperate trancript files, its a relatively easy step to combine them into one and sort by time. Then its just last polishes of files.
+

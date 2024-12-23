@@ -35,4 +35,33 @@ services:
     ports:
       - 30001:8200
     restart: unless-stopped
-
+  faster-whisper:
+    image: lscr.io/linuxserver/faster-whisper:latest
+    container_name: faster-whisper
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+      - WHISPER_MODEL=tiny-int8
+      - WHISPER_BEAM=1 #optional
+      - WHISPER_LANG=en #optional
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia # allows for newer gpu's to use Tenser cores for more speed and power, you have to enable the commented out line in the py code.
+              count: 1
+              capabilities: [gpu]
+        limits:
+          memory: 8G  # Increase memory limit (for example, 8GB)
+      #  mem_reservation: 4G  # Memory reservation (for example, 4GB)
+    command:  |
+      /bin/bash -c "apt update && apt -y install ffmpeg "
+    volumes:
+      - ./audio:/audio  # Audio input files
+      - ./transcripts:/transcripts  # Transcription outputs
+      - ./scripts:/scripts  # Python scripts
+      - ./config_whisper:/config  # Container-specific persistent files (if needed)
+    ports:
+      - 10300:10300
+    restart: unless-stopped
