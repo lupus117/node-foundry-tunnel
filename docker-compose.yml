@@ -55,8 +55,8 @@ services:
         limits:
           memory: 8G  # Increase memory limit (for example, 8GB)
       #  mem_reservation: 4G  # Memory reservation (for example, 4GB)
-    command:  |
-      /bin/bash -c "apt update && apt -y install ffmpeg "
+      # to use the script for creating transcripts use:  apt update && apt -y install ffmpeg
+      # to get into the container use  docker exec -it faster-whisper /bin/bash
     volumes:
       - ./audio:/audio  # Audio input files
       - ./transcripts:/transcripts  # Transcription outputs
