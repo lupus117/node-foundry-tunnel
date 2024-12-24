@@ -1,8 +1,12 @@
 import re
+import os
 from collections import defaultdict
 
 let transcripts = "/transcripts"
 let output = "/transcripts/polished/merged.txt"
+
+os.makedirs(output, exist_ok=True)
+
 def remove_duplicate_messages(input_lines):
     """
     Remove duplicate messages for each speaker, even if other speakers' messages intervene.
