@@ -2,10 +2,11 @@ import re
 import os
 from collections import defaultdict
 
-let transcripts = "/transcripts"
-let output = "/transcripts/polished/merged.txt"
+transcripts = "/transcripts"
+outputfolder = transcripts + "/polished"
+_output = outputfolder + "/merged.txt"
 
-os.makedirs(output, exist_ok=True)
+os.makedirs(outputfolder, exist_ok=True)
 
 def remove_duplicate_messages(input_lines):
     """
@@ -90,5 +91,5 @@ def concatenate_transcripts(input_folder):
 # Example usage:
 merged_lines = concatenate_transcripts(transcripts)
 processed_lines = remove_duplicate_messages(merged_lines)
-with open(output, "w", encoding="utf-8") as file:
+with open(_output, "w", encoding="utf-8") as file:
     file.writelines("\n".join(processed_lines))
