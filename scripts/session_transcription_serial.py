@@ -19,7 +19,7 @@ os.makedirs(output_dir, exist_ok=True)
 os.makedirs(tmpfiles, exist_ok=True)
 
 # Initialize the Whisper model
-model = WhisperModel("large", device="cpu", compute_type="float16")  # Adjust device/computation type as needed
+model = WhisperModel("large", device="cpu", compute_type="int8")  # Adjust device/computation type as needed
 #model sizes: tiny; base; small; medium; large
 #compute types: int8; float16; float32
 #devices: cpu - cpu; cuda - nvidia gpu, only newer ones with tenser cores get any real benefit.
