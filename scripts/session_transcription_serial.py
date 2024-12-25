@@ -19,19 +19,35 @@ os.makedirs(output_dir, exist_ok=True)
 os.makedirs(tmpfiles, exist_ok=True)
 
 # Initialize the Whisper model
-model = WhisperModel("large", device="cpu", compute_type="int8")  # Adjust device/computation type as needed
+model = WhisperModel("tiny", device="cpu", compute_type="int8")  # Adjust device/computation type as needed
 #model sizes: tiny; base; small; medium; large
 #compute types: int8; float16; float32
 #devices: cpu - cpu; cuda - nvidia gpu, only newer ones with tenser cores get any real benefit.
 
 # Global variable for chunk length in seconds
-CHUNK_LENGTH_SECONDS = 600  # 30 minutes by default
+CHUNK_LENGTH_SECONDS = 300  # 30 minutes by default
+
+
 
 # Helper function to format seconds to hh:mm:ss, rounded to the nearest second
 def seconds_to_hms(seconds):
     # Round to the nearest second
     seconds = round(seconds)
     return str(timedelta(seconds=seconds))
+
+# Function checks if audio file (using path) is complately silent. Significantly speeds up dnd audio transcription due to the large sections of silence
+def is_completely_silent(file_path):
+    print("checking if silent")
+    command = [
+        "ffmpeg", "-i", file_path, "-af", "silencedetect=n=-35dB:d=1", "-f", "null", "-"
+    ]
+    result = subprocess.run(command, stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    #print(result)
+    search_string = f"silence_duration: {CHUNK_LENGTH_SECONDS}"
+
+    if search_string in result.stderr:
+        return True  # Entire file is silent
+    return False  # Not completely silent
 
 # Helper function to split the audio file into smaller chunks using streaming
 def split_audio(input_file, base_name, chunk_length_seconds=1800):  # Default to 30 minutes (1800 seconds)
@@ -100,29 +116,35 @@ def folder_to_txt():
                     print(f"Transcribing chunk: {chunk_file}")
 
                     # Transcribe the audio chunk
-                    segments, _ = model.transcribe(chunk_file, language="en")
+                    
+                    # check if segment is complately silent
 
-                    # Process each transcription segment
-                    for segment in segments:
-                        start = segment.start  # Start time of the segment
-                        end = segment.end      # End time of the segment
-                        text = segment.text    # Transcribed text
+                    if is_completely_silent(chunk_file) == False:
 
-                        # Adjust start and end times based on cumulative time
-                        adjusted_start_time = start + cumulative_time
-                        adjusted_end_time = end + cumulative_time
+                        segments, _ = model.transcribe(chunk_file, language="en")
 
-                        # Format times in hh:mm:ss, rounded to seconds
-                        start_time = seconds_to_hms(adjusted_start_time)
-                        end_time = seconds_to_hms(adjusted_end_time)
+                        # Process each transcription segment
+                        for segment in segments:
+                            start = segment.start  # Start time of the segment
+                            end = segment.end      # End time of the segment
+                            text = segment.text    # Transcribed text
 
-                        # Write the transcribed text to the output file
-                        line = f"[{start_time} - {end_time}] {base_name}: {text}\n"
-                        f.write(line)
+                            # Adjust start and end times based on cumulative time
+                            adjusted_start_time = start + cumulative_time
+                            adjusted_end_time = end + cumulative_time
 
-                        # Print each transcribed line to the console
-                        print(f"[{start_time} - {end_time}] {base_name}: {text}")
+                            # Format times in hh:mm:ss, rounded to seconds
+                            start_time = seconds_to_hms(adjusted_start_time)
+                            end_time = seconds_to_hms(adjusted_end_time)
 
+                            # Write the transcribed text to the output file
+                            line = f"[{start_time} - {end_time}] {base_name}: {text}\n"
+                            f.write(line)
+
+                            # Print each transcribed line to the console
+                            print(f"[{start_time} - {end_time}] {base_name}: {text}")
+                    else:
+                        print("Segment is complately silent")
                     # Update the cumulative time after processing the chunk
                     cumulative_time += CHUNK_LENGTH_SECONDS
 
