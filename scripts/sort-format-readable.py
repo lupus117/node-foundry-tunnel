@@ -1,7 +1,7 @@
 import re
 
-merged_transcripts = "../transcripts/polished/merged.txt"
-polished_transcripts ="../transcripts/polished/polished.txt"
+merged_transcripts = "/transcripts/polished/merged.txt"
+polished_transcripts ="/transcripts/polished/polished.txt"
 
 
 def parse_timestamp_to_seconds(timestamp):
