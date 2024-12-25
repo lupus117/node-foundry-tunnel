@@ -52,8 +52,11 @@ services:
             - driver: nvidia # allows for newer gpu's to use Tenser cores for more speed and power, you have to enable the commented out line in the py code.
               count: 1
               capabilities: [gpu]
+           # - cpus: "2.0"  # Reserve at least 2 CPU cores for this container
+           # - memory: 4G   # Reserve at least 4GB of memory
         limits:
-          memory: 8G  # Increase memory limit (for example, 8GB)
+          cpus: "4.0"  # Limit container to 4 CPU cores
+          memory: 8G   # Limit memory usage to 8GB
       #  mem_reservation: 4G  # Memory reservation (for example, 4GB)
       # to use the script for creating transcripts use:  apt update && apt -y install ffmpeg
       # to get into the container use  docker exec -it faster-whisper /bin/bash
