@@ -48,7 +48,7 @@ def remove_duplicate_messages(input_lines):
             processed_lines.append(f"[{speaker_lines[speaker][-1][0]} - {speaker_lines[speaker][-1][1]}] {speaker}: {last_message} (x{repeat_count + 1})")
 
     # Order the processed lines by timestamp
-    return order_lines_by_timestamp(processed_lines)
+    return processed_lines
 
 def parse_timestamp_to_seconds(timestamp):
     """Convert a timestamp in HH:MM:SS format to total seconds."""
@@ -89,7 +89,7 @@ def concatenate_transcripts(input_folder):
     return merged_lines
 
 # Example usage:
-merged_lines = concatenate_transcripts(transcripts)
+merged_lines = order_lines_by_timestamp(concatenate_transcripts(transcripts))
 processed_lines = remove_duplicate_messages(merged_lines)
 with open(_output, "w", encoding="utf-8") as file:
     file.writelines("\n".join(processed_lines))
