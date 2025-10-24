@@ -1,4 +1,4 @@
-version: '3.9'
+#version: '3.9'
 
 
 services:
@@ -36,35 +36,44 @@ services:
       - 30001:8200
     restart: unless-stopped
   faster-whisper:
-    image: lscr.io/linuxserver/faster-whisper:latest
+   # image: lscr.io/linuxserver/faster-whisper:latest
+    image: fitriwibowo/wyoming-whisper:2.2.0
     container_name: faster-whisper
+    working_dir: /data/scripts
     environment:
       - PUID=1000
       - PGID=1000
       - TZ=Etc/UTC
-      - WHISPER_MODEL=tiny-int8
-      - WHISPER_BEAM=1 #optional
-      - WHISPER_LANG=en #optional
+      - SESHNAME=Session_1
+      - MODEL=distil-large-v3
+      - COMPUTETYPE=float32
+      - DEVICE=cuda
+   # entrypoint: ['bash', '-c', ' ./transcribe.sh -a $$SESHNAME -b $$MODEL -c $$COMPUTETYPE -d $$DEVICE']
+    entrypoint: ['bash', '-c']
+    command: ['ls -laR /data/ && chmod +x /data/scripts/transcribe.sh && /data/scripts/transcribe.sh -a $$SESHNAME -b $$MODEL -c $$COMPUTETYPE -d $$DEVICE']
+  #  command: 'ls -laR /data/ && chmod +x /data/scripts/transcribe.sh && /data/scripts/transcribe.sh -a $$SESHNAME -b $$MODEL -c $$COMPUTETYPE -d $$DEVICE'
+   # command: 
     deploy:
       resources:
-        reservations:
-          devices:
+         reservations:
+           devices:
             - driver: nvidia # allows for newer gpu's to use Tenser cores for more speed and power, you have to enable the commented out line in the py code.
               count: 1
               capabilities: [gpu]
            # - cpus: "2.0"  # Reserve at least 2 CPU cores for this container
            # - memory: 4G   # Reserve at least 4GB of memory
-        limits:
-          cpus: "4.0"  # Limit container to 4 CPU cores
-          memory: 8G   # Limit memory usage to 8GB
+         limits:
+          cpus: "3.0"  # Limit container to 4 CPU cores
+          memory: 16G   # Limit memory usage to 8GB
       #  mem_reservation: 4G  # Memory reservation (for example, 4GB)
       # to use the script for creating transcripts use:  apt update && apt -y install ffmpeg
       # to get into the container use  docker exec -it faster-whisper /bin/bash
     volumes:
-      - ./audio:/audio  # Audio input files
-      - ./transcripts:/transcripts  # Transcription outputs
-      - ./scripts:/scripts  # Python scripts
+      - ./audio:/data/audio  # Audio input files
+      - ./transcripts:/data/transcripts  # Transcription outputs
+      - ./scripts:/data/scripts  # Python scripts
       - ./config_whisper:/config  # Container-specific persistent files (if needed)
-    ports:
-      - 10300:10300
-    restart: unless-stopped
+  #  ports:
+    #  - 10300:10300
+   # restart: unless-stopped
+

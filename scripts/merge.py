@@ -1,8 +1,14 @@
 import re
 import os
 from collections import defaultdict
+import argparse
 
-transcripts = "/transcripts"
+
+parser = argparse.ArgumentParser(prog="faster-whisper session transcription", description="Transcribe audio files and add a session title to the output file names.")
+parser.add_argument('session_title', type=str, help="Title for the transcription session, which will be prefixed to the output file name.")
+args = parser.parse_args()
+
+transcripts = f"/data/transcripts/{args.session_title}"
 outputfolder = transcripts + "/polished"
 _output = outputfolder + "/merged.txt"
 
