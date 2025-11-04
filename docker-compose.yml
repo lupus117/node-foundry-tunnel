@@ -44,13 +44,14 @@ services:
       - PUID=1000
       - PGID=1000
       - TZ=Etc/UTC
-      - SESHNAME=Session_1
-      - MODEL=distil-large-v3
+      - SESHNAME=Session_28_TURBO-V3
+      - MODEL=deepdml/faster-whisper-large-v3-turbo-ct2
       - COMPUTETYPE=float32
       - DEVICE=cuda
+      - PARALELL=serial # note only use paralell with int8 as float32 and float 16 take context from previous end line
    # entrypoint: ['bash', '-c', ' ./transcribe.sh -a $$SESHNAME -b $$MODEL -c $$COMPUTETYPE -d $$DEVICE']
     entrypoint: ['bash', '-c']
-    command: ['ls -laR /data/ && chmod +x /data/scripts/transcribe.sh && /data/scripts/transcribe.sh -a $$SESHNAME -b $$MODEL -c $$COMPUTETYPE -d $$DEVICE']
+    command: ['chmod +x /data/scripts/transcribe.sh && /data/scripts/transcribe.sh -a $$SESHNAME -b $$MODEL -c $$COMPUTETYPE -d $$DEVICE -e $$PARALELL -q' ]
   #  command: 'ls -laR /data/ && chmod +x /data/scripts/transcribe.sh && /data/scripts/transcribe.sh -a $$SESHNAME -b $$MODEL -c $$COMPUTETYPE -d $$DEVICE'
    # command: 
     deploy:
@@ -63,12 +64,13 @@ services:
            # - cpus: "2.0"  # Reserve at least 2 CPU cores for this container
            # - memory: 4G   # Reserve at least 4GB of memory
          limits:
-          cpus: "3.0"  # Limit container to 4 CPU cores
-          memory: 16G   # Limit memory usage to 8GB
+          cpus: "3.0"  # Limit container to x CPU cores
+          memory: 16G   # Limit memory usage to x GB
       #  mem_reservation: 4G  # Memory reservation (for example, 4GB)
       # to use the script for creating transcripts use:  apt update && apt -y install ffmpeg
       # to get into the container use  docker exec -it faster-whisper /bin/bash
     volumes:
+      - ./whisper-models:/root/.cache/huggingface/hub/
       - ./audio:/data/audio  # Audio input files
       - ./transcripts:/data/transcripts  # Transcription outputs
       - ./scripts:/data/scripts  # Python scripts

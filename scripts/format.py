@@ -6,7 +6,7 @@ parser = argparse.ArgumentParser(prog="faster-whisper session transcription", de
 parser.add_argument('session_title', type=str, help="Title for the transcription session, which will be prefixed to the output file name.")
 args = parser.parse_args()
 
-merged_transcripts = "/data/transcripts/{args.session_title}/polished/merged.txt"
+merged_transcripts = f"/data/transcripts/{args.session_title}/polished/merged.txt"
 polished_transcripts =f"/data/transcripts/{args.session_title}/polished/{args.session_title}.txt"
 
 
