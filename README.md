@@ -82,16 +82,16 @@ After the initial setup, in my experience it should be no problem to run the sub
 In case I wish to convert audio recordings from dnd sessions on with the craig bot, I get an audio file per participant in the call. I can then convert those into text using faster-whisper. doing this is somewhat more complex but I'll try and make it simple.
 
 the models, compute-types and session name are all defined in the docker-compose.yml
-simply drag the mp3 files with the speaker names into the audio folder and set the variables.
+simply drag the mp3 files with the speaker names into a subfolder of the audio folder with the name you wish to give that transcription and set the variables.
 NB! if you do not have an nvidia gpu, select cpu as the device and comment out the lines regarding the gpu. Feel free to alter the reservations for the cores and memory in case of cpu transcription.
 
 
 
-Once the container has finished running you should have a file in ./transcripts/SESSION\_NAME/polished with the session\_name.txt
+Once the container has finished running you should have a file in ./transcripts/SESSION\_NAME/Model/polished with the session\_name.txt
 
 in the same folder will be a file with the data about the transcription.
-Be sure to remove any old .mp3 files whenever needed, to make sure not to accidentally have lingering copies. if you see you have in fact created trancriptions with copies. remove the speaker.txt files and run docker compose run faster-whisper python3 /data/scripts/merge.py SESSION\_NAME \&\& /data/scripts/format.py SESSION\_NAME
 
+You may include as many folders in the audio folder as you wish as the metadata file keeps track of which folders are completed with the compose settings. If you change the model the old transcription folder will not dissapear, however if audiofiles are changed, it will run it again.
 
 
 ##### Dev log
@@ -105,4 +105,6 @@ After research, using a stream with the FFMPEG library and cut it into smaller s
 The plan was to take all the mp3 files in a folder, one by one segment them, transcribe them, delete the segmented temp files and name them according to the desired session name + file name. The file name of the seperate .mp3 files will be the player name.
 
 When it goes through and gives all the seperate trancript files, its a relatively easy step to combine them into one and sort by time. Then its just last polishes of files.
+
+After a bit of tinkering i decided to include the other python files in the transcript.py and have it run automatically per transcription folder. Also added a way for the program to keep track of what has already been transcribed with the current settings so that the old files are not lost when running again with new models and models have their own subfolders.
 
