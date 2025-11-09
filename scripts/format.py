@@ -1,13 +1,6 @@
 import re
-import argparse
 
 
-parser = argparse.ArgumentParser(prog="faster-whisper session transcription", description="Transcribe audio files and add a session title to the output file names.")
-parser.add_argument('session_title', type=str, help="Title for the transcription session, which will be prefixed to the output file name.")
-args = parser.parse_args()
-
-merged_transcripts = f"/data/transcripts/{args.session_title}/polished/merged.txt"
-polished_transcripts =f"/data/transcripts/{args.session_title}/polished/{args.session_title}.txt"
 
 
 def parse_timestamp_to_seconds(timestamp):
@@ -102,27 +95,22 @@ def read_transcript_file(file_path):
         print(f"Error reading file: {e}")
         return []
 
-# Main testing function
-def main():
-    # Specify the test file
-   # test_file = "cleaned_transcript.txt"  # Replace with your test file path
-    print(f"Reading from file: {merged_transcripts}\n")
-    input_lines = read_transcript_file(merged_transcripts)
+def format_with_header(merged_file:str, output_file:str,header:str=""):
+    print(f"Reading from file: {merged_file}\n")
+    input_lines = read_transcript_file(merged_file)
 
     if not input_lines:
         print("No input lines found. Exiting.")
         return
 
     merged_output = merge_speaker_lines(input_lines)
-    output_file = polished_transcripts
 
     # Save the merged output to a file
-    with open(output_file, "w", encoding="utf-8") as f:
+    with open(output_file, "a", encoding="utf-8") as f:
+        f.write(header)
         f.write("\n\n".join(merged_output))
 
     print(f"polished transcript saved to: {output_file}")
     print("\nPolished Output:\n")
-    print("\n\n".join(merged_output))
+    print(f"{header}\n\n".join(merged_output))
 
-if __name__ == "__main__":
-    main()

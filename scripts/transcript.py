@@ -6,6 +6,9 @@ from faster_whisper import WhisperModel
 import argparse
 import time
 from concurrent.futures import ThreadPoolExecutor
+import merge
+import format
+import re
 
 def cleandir(folder: str):
     for filename in os.listdir(folder):
@@ -20,20 +23,22 @@ def cleandir(folder: str):
 
 # Initialize the argument parser
 parser = argparse.ArgumentParser(prog="faster-whisper session transcription", description="Transcribe audio files and add a session title to the output file names.")
-parser.add_argument('session_title', type=str, help="Title for the transcription session, which will be prefixed to the output file names.")
+#parser.add_argument('session_title', type=str, help="Title for the transcription session, which will be prefixed to the output file names.")
 parser.add_argument('-m', '--model')
 parser.add_argument('-d', '--device')
 parser.add_argument('-c', '--compute_type')
-parser.add_argument('-p', '--paralell_type')
-parser.add_argument("-q", "--quiet", action="store_true", help="Enable quiet mode")
+parser.add_argument('-p', '--paralell_type', action="store_true", help="Enable quiet mode")
+parser.add_argument('-q', '--quiet', action="store_true", help="Enable quiet mode")
+parser.add_argument('-s', '--chunk_silence', action="store_false",help="Disables the checking if a chunk is silent.")
+parser.add_argument('-l', '--chunk_length', type=int, default=1800, help="Set the chunk length in seconds")
 
 args = parser.parse_args()
 
 # Path to the directory containing the audio files
 tmpfiles = "/tmpfiles"
 audio_dir = "/data/audio"
-output_dir = f"/data/transcripts/{args.session_title}"
-polish_dir = f"{output_dir}/polished"
+output_dir = f"/data/transcripts/"
+#polish_dir = f"{output_dir}/polished"
 
 # Ensure the output directory exists
 os.makedirs(output_dir, exist_ok=True)
@@ -41,7 +46,7 @@ os.makedirs(tmpfiles, exist_ok=True)
 
 # Clean any possible remenants of an old run
 cleandir(tmpfiles)
-cleandir(output_dir)
+#cleandir(output_dir)
 #cleandir(polish_dir)
 
 # Initialize the Whisper model
@@ -51,10 +56,11 @@ model = WhisperModel(args.model, device=args.device, compute_type=args.compute_t
 #devices: cpu - cpu; cuda - nvidia gpu, only newer ones with tenser cores get any real benefit.
 
 # Global variable for chunk length in seconds
-CHUNK_LENGTH_SECONDS = 1800  # 30 minutes by default
-AUDIOFILE_COUNT = 0
-AUDIOFILE_NAMES = []
+CHUNK_LENGTH_SECONDS = args.chunk_length  # 30 minutes by default
 
+def qprint(input):
+    if args.quiet == False:
+        print(input)
 
 
 # Helper function to format seconds to hh:mm:ss, rounded to the nearest second
@@ -65,12 +71,12 @@ def seconds_to_hms(seconds):
 
 # Function checks if audio file (using path) is complately silent. Significantly speeds up dnd audio transcription due to the large sections of silence
 def is_completely_silent(file_path):
-    print("checking if silent")
+    qprint("checking if silent")
     command = [
         "ffmpeg", "-i", file_path, "-af", "silencedetect=n=-35dB:d=1", "-f", "null", "-"
     ]
     result = subprocess.run(command, stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
-    #print(result)
+    #qprint(result)
     search_string = f"silence_duration: {CHUNK_LENGTH_SECONDS}"
 
     if search_string in result.stderr:
@@ -79,17 +85,20 @@ def is_completely_silent(file_path):
 
 # Helper function to split the audio file into smaller chunks using streaming
 def split_audio(input_file, base_name, chunk_length_seconds=1800):  # Default to 30 minutes (1800 seconds)
-    print("Splitting audio into chunks...")
+    qprint("Splitting audio into chunks...")
 
     # Run ffmpeg to get the total duration of the input file
     result = subprocess.run(['ffmpeg', '-i', input_file],stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
-
     # Extract the duration in seconds from ffmpeg's stderr output
     duration_line = [line for line in result.stderr.splitlines() if "Duration" in line]
     if not duration_line:
-        print("Error: Unable to determine the duration of the file.")
+        qprint("Error: Unable to determine the duration of the file.")
+        raise ChildProcessError(f"Error: Unable to determine the duration of the file {input_file}.\n {str(result.stderr)}")
         return []
     
+    #if len(result.stderr) > 3:
+     #   raise ChildProcessError('Error in splitting files into chunks\n' + str(result.stderr))
+         
     duration = duration_line[0].split()[1]
     
     # Clean up the duration string by removing commas and other non-numeric characters
@@ -100,10 +109,10 @@ def split_audio(input_file, base_name, chunk_length_seconds=1800):  # Default to
         h, m, s = map(float, duration.split(":"))
         total_duration_seconds = int(h * 3600 + m * 60 + s)
     except ValueError as e:
-        print(f"Error: Failed to parse duration '{duration}'. {e}")
+        qprint(f"Error: Failed to parse duration '{duration}'. {e}")
         return []
 
-    print(f"Total duration: {total_duration_seconds} seconds")
+    qprint(f"Total duration: {total_duration_seconds} seconds")
 
 
     # Generate the chunk filenames and use ffmpeg to extract each segment
@@ -122,10 +131,11 @@ def split_audio(input_file, base_name, chunk_length_seconds=1800):  # Default to
     return chunks
 
 def transcribe_chunk(chunk_file, base_name, cumulative_time, output_file):
-    print(f"Checking if chunk {chunk_file} is silent")
-    if is_completely_silent(chunk_file):
-        print(f"Chunk {chunk_file} is completely silent.")
-        return
+    if args.chunk_silence:
+        qprint(f"Checking if chunk {chunk_file} is silent")
+        if is_completely_silent(chunk_file):
+            qprint(f"Chunk {chunk_file} is completely silent.")
+            return
 
     segments, _ = model.transcribe(chunk_file, language="en", vad_filter=True)
     with open(output_file, "a", encoding="utf-8") as f:
@@ -139,35 +149,110 @@ def transcribe_chunk(chunk_file, base_name, cumulative_time, output_file):
             line = f"[{start_time} - {end_time}] {base_name}: {text}\n"
             f.write(line)
             if not args.quiet:
-                print(f"[{start_time} - {end_time}] {base_name}: {text}")
+                qprint(f"[{start_time} - {end_time}] {base_name}: {text}")
 
 # Process each .mp3 file in the directory and transcribe it
-def folder_to_txt() -> str: 
-    global AUDIOFILE_COUNT
-    global AUDIOFILE_NAMES
-    for file_name in os.listdir(audio_dir):
+def folders_to_txt(dir_path :str):
+    for fold_name in os.listdir(dir_path):
+        if os.path.isdir(os.path.join(dir_path,fold_name)):
+            stat = folder_to_txt(os.path.join(dir_path,fold_name),fold_name)
+            print(f"Folder {fold_name} done with status {stat}")
+
+def update_meta(folder_path: str, title, status,model,compute,device,audiofiles,start_time,error = ""):
+    end_time = time.time()
+    meta_path = os.path.join(folder_path,"metadata.txt")
+    audio_count = len(audiofiles)
+    if audio_count < 1:
+        audio_count = 1
+    meta = f"""Session title           = {title}
+Status                  = {status}
+faster-whisper model    = {model}
+compute-type            = {compute}
+device                  = {device}
+audiofiles              = {[f"{a} " for a in audiofiles ]}
+date and time of run    = {time.ctime(start_time)}
+runtime                 = {seconds_to_hms(end_time - start_time)}
+average runtime of file = {seconds_to_hms((end_time - start_time)/audio_count)}
+completion at           = {time.ctime(end_time)}
+
+{error}
+        
+"""
+    with open(meta_path, "w",encoding="utf8") as f:
+        f.writelines(meta)
+
+def check_meta(fold_path: str, title, status,model,compute,device,audiofiles) -> bool:
+    qprint("checking metadata")
+    meta_path = os.path.join(fold_path,"metadata.txt")
+    if os.path.exists(meta_path) is False:
+        return False
+    with open(meta_path,"r") as f:
+        meta = (f.read()).split("\n")[:5]
+    meta_cur = f"""Session title           = {title}
+Status                  = {status}
+faster-whisper model    = {model}
+compute-type            = {compute}
+device                  = {device}
+audiofiles              = {[f"{a} " for a in audiofiles ]}
+""".split("\n")[:5]
+    #print("existing:\n",meta,"current:\n",meta_cur)
+    if meta == meta_cur:
+        return True
+    else:
+        return False
+
+
+def folder_to_txt(folder_path: str, folder_name: str) -> str: 
+    start_time = time.time()
+    MODEL_NAME = args.model
+    COMPUTE_TYPE = args.compute_type
+    DEVICE = args.device
+    AUDIOFILE_NAMES = []
+    outfolder = os.path.join(output_dir,folder_name,re.escape(MODEL_NAME))
+    polish_dir = os.path.join(outfolder,"polished")
+    os.makedirs(outfolder, exist_ok=True)
+    os.makedirs(polish_dir, exist_ok=True) 
+    def meta_update(status,error = ""):
+        update_meta(folder_path=polish_dir,title=folder_name,audiofiles=AUDIOFILE_NAMES,compute=COMPUTE_TYPE,device=DEVICE,start_time=start_time,error=error,status=status,model=MODEL_NAME)
+
+    print("Transcribing: ",folder_path)
+    _files = os.listdir(folder_path)
+    files = []
+    for file_name in _files:
         if file_name.endswith(".mp3"):
-            AUDIOFILE_COUNT += 1
-            AUDIOFILE_NAMES.append(file_name)
-            file_path = os.path.join(audio_dir, file_name)
-            print(f"Processing file: {file_path}")
+            files.append(file_name)
+    if check_meta(polish_dir,folder_name,"Completed",MODEL_NAME,COMPUTE_TYPE,DEVICE,files) is True:
+        print ("Folder ", folder_name,"Has already been transcribed with same paramaters")
+        #print("metadata is equal")
+        return "Completed"   
+    cleandir(outfolder)
+    os.makedirs(outfolder, exist_ok=True)
+    os.makedirs(polish_dir, exist_ok=True)
 
-            # Remove the .mp3 extension from the file name
-            base_name = os.path.splitext(file_name)[0]
+    meta_update("Started")
+    for file_name in files:
+        AUDIOFILE_NAMES.append(file_name)
+        file_path = os.path.join(folder_path, file_name)
+        qprint(f"Processing file: {file_path}")
 
+        # Remove the .mp3 extension from the file name
+        base_name = os.path.splitext(file_name)[0]
+        meta_update("Transcribing "+ file_name)
+
+        try:
             # Split the audio file into chunks (5-minute segments by default)
             chunks = split_audio(file_path, base_name, CHUNK_LENGTH_SECONDS)
-            print(f"Split the audio into {len(chunks)} chunks.")
+            qprint(f"Split the audio into {len(chunks)} chunks.")
 
             # Track the cumulative time for the entire file
             cumulative_time = 0
 
             # Prepare the output file for the entire audio file
-            output_file = os.path.join(output_dir, f"{args.session_title}_{base_name}.txt")
-            
-            if args.paralell_type == "paralell":
-                 print("printed lines will be out of order before format.py")
-                 with ThreadPoolExecutor() as executor:
+            output_file = os.path.join(outfolder, f"{base_name}.txt")
+
+            if args.paralell_type == True:
+                qprint("printed lines will be out of order before formatting")
+                with ThreadPoolExecutor() as executor:
                     futures = []
                     for chunk_file in chunks:
                         futures.append(executor.submit(transcribe_chunk, chunk_file, base_name, cumulative_time, output_file))
@@ -177,83 +262,46 @@ def folder_to_txt() -> str:
                     for future in futures:
                         future.result()
             else:
-               # with open(output_file, "w", encoding="utf-8") as f:
+            # with open(output_file, "w", encoding="utf-8") as f:
                     # Process each chunk individually
                     for chunk_file in chunks:
-                        print(f"Transcribing chunk: {chunk_file}")
+                        qprint(f"Transcribing chunk: {chunk_file}")
 
                         # Transcribe the audio chunk
                         transcribe_chunk(chunk_file, base_name, cumulative_time, output_file)
-                        legacy4testing ="""
-                        # check if segment is complately silent
-
-                        if is_completely_silent(chunk_file) == False:
-
-                            segments, _ = model.transcribe(chunk_file, language="en",vad_filter=True)#,batch_size=16)
-
-                            # Process each transcription segment
-                            for segment in segments:
-                                start = segment.start  # Start time of the segment
-                                end = segment.end      # End time of the segment
-                                text = segment.text    # Transcribed text
-
-                                # Adjust start and end times based on cumulative time
-                                adjusted_start_time = start + cumulative_time
-                                adjusted_end_time = end + cumulative_time
-
-                                # Format times in hh:mm:ss, rounded to seconds
-                                start_time = seconds_to_hms(adjusted_start_time)
-                                end_time = seconds_to_hms(adjusted_end_time)
-
-                                # Write the transcribed text to the output file
-                                line = f"[{start_time} - {end_time}] {base_name}: {text}\n"
-                                f.write(line)
-
-                                # Print each transcribed line to the console
-                                print(f"[{start_time} - {end_time}] {base_name}: {text}")
-                        else:
-                            print("Segment is complately silent")
-                        """
-                        # Update the cumulative time after processing the chunk
                         cumulative_time += CHUNK_LENGTH_SECONDS
 
-            print(f"Transcript saved to: {output_file}")
+            qprint(f"Transcript saved to: {output_file}")
 
             # Clean up the temporary chunk files after processing the current file
             for chunk_file in chunks:
                 os.remove(chunk_file)
-                print(f"Deleted temporary chunk file: {chunk_file}")
+                qprint(f"Deleted temporary chunk file: {chunk_file}")
+        except Exception as e:
+            print(f"Error in transcribing {file_name} in {folder_path}\n Error info in meta in {outfolder}/polished/metadata.txt")
+            meta_update(f"Error in transcribing {file_name}",f"Error info: \n{str(e)}")
+            return "Error"
 
-    print("Batch transcription complete!")
-    return "success"
+    qprint("Batch transcription complete!")
+    qprint("Merging and Fromatting transcripts")
+    meta_update("Merging")
+    mergedfile = os.path.join(polish_dir,f"merged.txt")
+    completed_file = os.path.join(polish_dir,f"{folder_name}.txt")
+    headerfile = os.path.join(folder_path,"header.txt")
+    header = ""
+    if os.path.exists(headerfile):
+        with open(headerfile, "r") as f:
+            header = f.read()
+    try:
+        merge.merge_folder(output_file=mergedfile,transcripts_folder=outfolder)
+        format.format_with_header(merged_file=mergedfile,output_file=completed_file,header=header)
+    except Exception as e:
+        print(f"Error in merging and formatting {outfolder} Error info in meta in {outfolder}/polished/metadata.txt")
+        meta_update("Error",str(e))
+        return "Error"
+    meta_update("Completed")
+    with open(os.path.join(polish_dir,"metadata.txt"),"r", encoding="utf-8") as f:
+        print(f.read())
+    return "Completed"
 
-
-start_time = time.time()
-endstate = "Started"
-error = ""
-try:
-    endstate = folder_to_txt()
-except Exception as e:
-    endstate = "error"
-    error = f"Error info: \n{str(e)}"
-    print(f"An Error Has occurred, read meta file in {polish_dir}")
-end_time = time.time() 
-
-os.makedirs(polish_dir, exist_ok=True)
-meta = f"""
-Session title           = {args.session_title}
-Status                  = {endstate}
-faster-whisper model    = {args.model}
-compute-type            = {args.compute_type}
-device                  = {args.device}
-audiofiles              = {[f"{a} " for a in AUDIOFILE_NAMES ]}
-date and time of run    = {time.ctime(start_time)}
-runtime                 = {seconds_to_hms(end_time - start_time)}
-average runtime of file = {seconds_to_hms((end_time - start_time)/AUDIOFILE_COUNT)}
-completion at           = {time.ctime(time.time())}
-
-{error}
-
-"""
-with open(f"{polish_dir}/metadata.txt", "w",encoding="utf8") as f:
-    f.writelines(meta)
+folders_to_txt(audio_dir)

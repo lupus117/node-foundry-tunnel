@@ -1,18 +1,7 @@
 import re
 import os
 from collections import defaultdict
-import argparse
 
-
-parser = argparse.ArgumentParser(prog="faster-whisper session transcription", description="Transcribe audio files and add a session title to the output file names.")
-parser.add_argument('session_title', type=str, help="Title for the transcription session, which will be prefixed to the output file name.")
-args = parser.parse_args()
-
-transcripts = f"/data/transcripts/{args.session_title}"
-outputfolder = transcripts + "/polished"
-_output = outputfolder + "/merged.txt"
-
-os.makedirs(outputfolder, exist_ok=True)
 
 def remove_duplicate_messages(input_lines):
     """
@@ -74,16 +63,13 @@ def order_lines_by_timestamp(input_lines):
 
 def concatenate_transcripts(input_folder):
     """
-    Concatenate all files in the /transcripts folder into a single merged file.
+    Concatenate all files in the transcripts folder into a single merged file.
     """
-    import os
-
-    transcript_files = [
-        os.path.join(input_folder, f)
-        for f in os.listdir(input_folder)
-        if os.path.isfile(os.path.join(input_folder, f))
-    ]
-
+    transcript_files = []
+    for f in os.listdir(input_folder):
+        if os.path.isfile(os.path.join(input_folder, f)):
+            transcript_files.append(os.path.join(input_folder,f))
+    
     merged_lines = []
     for file_path in transcript_files:
         with open(file_path, "r", encoding="utf-8") as file:
@@ -94,8 +80,11 @@ def concatenate_transcripts(input_folder):
 
     return merged_lines
 
-# Example usage:
-merged_lines = order_lines_by_timestamp(concatenate_transcripts(transcripts))
-processed_lines = remove_duplicate_messages(merged_lines)
-with open(_output, "w", encoding="utf-8") as file:
-    file.writelines("\n".join(processed_lines))
+
+def merge_folder(transcripts_folder:str,output_file):
+
+    merged_lines = order_lines_by_timestamp(concatenate_transcripts(transcripts_folder))
+    processed_lines = remove_duplicate_messages(merged_lines)
+    with open(output_file, "w", encoding="utf-8") as file:
+        file.writelines("\n".join(processed_lines))
+

@@ -7,3 +7,4 @@
 /transcripts
 /config_whisper
 /whisper-models
+/scripts/__pycache__
