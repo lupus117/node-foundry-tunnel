@@ -47,8 +47,7 @@ services:
       - MODEL=deepdml/faster-whisper-large-v3-turbo-ct2
       - COMPUTETYPE=float32
       - DEVICE=cuda
-      - QUIET=True
-      - PARALELL=serial # note only use paralell with int8 as float32 and float 16 take context from previous end line
+ # note only use paralell with int8 as float32 and float 16 take context from previous end line
    # entrypoint: ['bash', '-c', ' ./transcribe.sh -a $$SESHNAME -b $$MODEL -c $$COMPUTETYPE -d $$DEVICE']
     entrypoint: ['bash', '-c']
     command: ['chmod +x /data/scripts/transcribe.sh && /data/scripts/transcribe.sh -b $$MODEL -c $$COMPUTETYPE -d $$DEVICE ']

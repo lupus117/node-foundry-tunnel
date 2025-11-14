@@ -38,11 +38,13 @@ args = parser.parse_args()
 tmpfiles = "/tmpfiles"
 audio_dir = "/data/audio"
 output_dir = f"/data/transcripts/"
+copy_dir = f"{output_dir}completed"
 #polish_dir = f"{output_dir}/polished"
 
 # Ensure the output directory exists
 os.makedirs(output_dir, exist_ok=True)
 os.makedirs(tmpfiles, exist_ok=True)
+os.makedirs(copy_dir, exist_ok=True)
 
 # Clean any possible remenants of an old run
 cleandir(tmpfiles)
@@ -204,16 +206,16 @@ audiofiles              = {[f"{a} " for a in audiofiles ]}
 
 def folder_to_txt(folder_path: str, folder_name: str) -> str: 
     start_time = time.time()
-    MODEL_NAME = args.model
+    MODEL_NAME = args.model.replace("/","-")
     COMPUTE_TYPE = args.compute_type
     DEVICE = args.device
     AUDIOFILE_NAMES = []
-    outfolder = os.path.join(output_dir,folder_name,re.escape(MODEL_NAME))
+    outfolder = os.path.join(output_dir,folder_name,MODEL_NAME)
     polish_dir = os.path.join(outfolder,"polished")
     os.makedirs(outfolder, exist_ok=True)
     os.makedirs(polish_dir, exist_ok=True) 
-    def meta_update(status,error = ""):
-        update_meta(folder_path=polish_dir,title=folder_name,audiofiles=AUDIOFILE_NAMES,compute=COMPUTE_TYPE,device=DEVICE,start_time=start_time,error=error,status=status,model=MODEL_NAME)
+    def meta_update(status,error = "", files = AUDIOFILE_NAMES):
+        update_meta(folder_path=polish_dir,title=folder_name,audiofiles=files,compute=COMPUTE_TYPE,device=DEVICE,start_time=start_time,error=error,status=status,model=MODEL_NAME)
 
     print("Transcribing: ",folder_path)
     _files = os.listdir(folder_path)
@@ -221,85 +223,91 @@ def folder_to_txt(folder_path: str, folder_name: str) -> str:
     for file_name in _files:
         if file_name.endswith(".mp3"):
             files.append(file_name)
+    transcription_needed = True
     if check_meta(polish_dir,folder_name,"Completed",MODEL_NAME,COMPUTE_TYPE,DEVICE,files) is True:
         print ("Folder ", folder_name,"Has already been transcribed with same paramaters")
         #print("metadata is equal")
-        return "Completed"   
-    cleandir(outfolder)
+        transcription_needed = False
+    else:
+        cleandir(outfolder)
     os.makedirs(outfolder, exist_ok=True)
     os.makedirs(polish_dir, exist_ok=True)
 
     meta_update("Started")
-    for file_name in files:
-        AUDIOFILE_NAMES.append(file_name)
-        file_path = os.path.join(folder_path, file_name)
-        qprint(f"Processing file: {file_path}")
+    if transcription_needed == True:
+        for file_name in files:
+            AUDIOFILE_NAMES.append(file_name)
+            file_path = os.path.join(folder_path, file_name)
+            qprint(f"Processing file: {file_path}")
 
-        # Remove the .mp3 extension from the file name
-        base_name = os.path.splitext(file_name)[0]
-        meta_update("Transcribing "+ file_name)
+            # Remove the .mp3 extension from the file name
+            base_name = os.path.splitext(file_name)[0]
+            meta_update("Transcribing "+ file_name)
 
-        try:
-            # Split the audio file into chunks (5-minute segments by default)
-            chunks = split_audio(file_path, base_name, CHUNK_LENGTH_SECONDS)
-            qprint(f"Split the audio into {len(chunks)} chunks.")
+            try:
+                # Split the audio file into chunks (5-minute segments by default)
+                chunks = split_audio(file_path, base_name, CHUNK_LENGTH_SECONDS)
+                qprint(f"Split the audio into {len(chunks)} chunks.")
 
-            # Track the cumulative time for the entire file
-            cumulative_time = 0
+                # Track the cumulative time for the entire file
+                cumulative_time = 0
 
-            # Prepare the output file for the entire audio file
-            output_file = os.path.join(outfolder, f"{base_name}.txt")
+                # Prepare the output file for the entire audio file
+                output_file = os.path.join(outfolder, f"{base_name}.txt")
 
-            if args.paralell_type == True:
-                qprint("printed lines will be out of order before formatting")
-                with ThreadPoolExecutor() as executor:
-                    futures = []
-                    for chunk_file in chunks:
-                        futures.append(executor.submit(transcribe_chunk, chunk_file, base_name, cumulative_time, output_file))
-                        cumulative_time += CHUNK_LENGTH_SECONDS
+                if args.paralell_type == True:
+                    qprint("printed lines will be out of order before formatting")
+                    with ThreadPoolExecutor() as executor:
+                        futures = []
+                        for chunk_file in chunks:
+                            futures.append(executor.submit(transcribe_chunk, chunk_file, base_name, cumulative_time, output_file))
+                            cumulative_time += CHUNK_LENGTH_SECONDS
 
-                    # Wait for all threads to complete
-                    for future in futures:
-                        future.result()
-            else:
-            # with open(output_file, "w", encoding="utf-8") as f:
-                    # Process each chunk individually
-                    for chunk_file in chunks:
-                        qprint(f"Transcribing chunk: {chunk_file}")
+                        # Wait for all threads to complete
+                        for future in futures:
+                            future.result()
+                else:
+                # with open(output_file, "w", encoding="utf-8") as f:
+                        # Process each chunk individually
+                        for chunk_file in chunks:
+                            qprint(f"Transcribing chunk: {chunk_file}")
 
-                        # Transcribe the audio chunk
-                        transcribe_chunk(chunk_file, base_name, cumulative_time, output_file)
-                        cumulative_time += CHUNK_LENGTH_SECONDS
+                            # Transcribe the audio chunk
+                            transcribe_chunk(chunk_file, base_name, cumulative_time, output_file)
+                            cumulative_time += CHUNK_LENGTH_SECONDS
 
-            qprint(f"Transcript saved to: {output_file}")
+                qprint(f"Transcript saved to: {output_file}")
 
-            # Clean up the temporary chunk files after processing the current file
-            for chunk_file in chunks:
-                os.remove(chunk_file)
-                qprint(f"Deleted temporary chunk file: {chunk_file}")
-        except Exception as e:
-            print(f"Error in transcribing {file_name} in {folder_path}\n Error info in meta in {outfolder}/polished/metadata.txt")
-            meta_update(f"Error in transcribing {file_name}",f"Error info: \n{str(e)}")
-            return "Error"
+                # Clean up the temporary chunk files after processing the current file
+                for chunk_file in chunks:
+                    os.remove(chunk_file)
+                    qprint(f"Deleted temporary chunk file: {chunk_file}")
+            except Exception as e:
+                print(f"Error in transcribing {file_name} in {folder_path}\n Error info in meta in {outfolder}/polished/metadata.txt")
+                meta_update(f"Error in transcribing {file_name}",f"Error info: \n{str(e)}")
+                return "Error"
 
     qprint("Batch transcription complete!")
     qprint("Merging and Fromatting transcripts")
-    meta_update("Merging")
     mergedfile = os.path.join(polish_dir,f"merged.txt")
     completed_file = os.path.join(polish_dir,f"{folder_name}.txt")
+    completed_copy_dir = os.path.join(copy_dir,MODEL_NAME)
+    os.makedirs(completed_copy_dir, exist_ok=True)
+    completed_copy = os.path.join(completed_copy_dir,f"{folder_name}.md")
     headerfile = os.path.join(folder_path,"header.txt")
     header = ""
-    if os.path.exists(headerfile):
+    if os.path.isfile(headerfile):
         with open(headerfile, "r") as f:
             header = f.read()
     try:
         merge.merge_folder(output_file=mergedfile,transcripts_folder=outfolder)
         format.format_with_header(merged_file=mergedfile,output_file=completed_file,header=header)
+        format.format_with_header(merged_file=mergedfile,output_file=completed_copy,header=header,format="md")
     except Exception as e:
         print(f"Error in merging and formatting {outfolder} Error info in meta in {outfolder}/polished/metadata.txt")
-        meta_update("Error",str(e))
+        meta_update("Completed",str(e),files=files)
         return "Error"
-    meta_update("Completed")
+    meta_update("Completed",files=files)
     with open(os.path.join(polish_dir,"metadata.txt"),"r", encoding="utf-8") as f:
         print(f.read())
     return "Completed"

@@ -19,7 +19,7 @@ def order_lines_by_timestamp(input_lines):
     
     return sorted(input_lines, key=extract_start_time)
 
-def merge_speaker_lines(input_lines):
+def merge_speaker_lines(input_lines,format:str =""):
     # Process the lines as before, but after sorting them
     input_lines = order_lines_by_timestamp(input_lines)
     merged_lines = []
@@ -44,7 +44,7 @@ def merge_speaker_lines(input_lines):
         if speaker != current_speaker:
             # If speaker changes, finalize the current speaker's block
             if current_speaker and current_text:
-                merged_lines.append(format_block(current_start, current_end, current_text, indent_level))
+                merged_lines.append(format_block(current_start, current_end, current_text, indent_level,format=format))
             # Reset for the new speaker
             current_speaker = speaker
             current_start = start
@@ -70,18 +70,22 @@ def merge_speaker_lines(input_lines):
 
     # Finalize the last block
     if current_speaker and current_text:
-        merged_lines.append(format_block(current_start, current_end, current_text, indent_level))
+        merged_lines.append(format_block(current_start, current_end, current_text, indent_level,format=format))
 
     return merged_lines
 
-def format_block(start, end, texts, indent_level):
+def format_block(start, end, texts, indent_level,format:str = ""):
     # Ensure that we don't try to format if the text is empty
     if not texts:
         return ""  # Prevent error if texts is empty
     # Create the formatted block with the start/end times and the first speaker line
-    block = [f"[{start} - {end}] {texts[0]}"]
+    if format == "md":
+        block = [f"({start} - {end}) {texts[0]}"]
+    else:
+        block = [f"[{start} - {end}] {texts[0]}"]
     # Add each subsequent line, ensuring proper indentation
     block.extend(f"{' ' * indent_level}{line}" for line in texts[1:] if line.strip())  # Skip empty lines
+    
     return "\n".join(block)
 
 def read_transcript_file(file_path):
@@ -95,7 +99,7 @@ def read_transcript_file(file_path):
         print(f"Error reading file: {e}")
         return []
 
-def format_with_header(merged_file:str, output_file:str,header:str=""):
+def format_with_header(merged_file:str, output_file:str,header:str="",format:str=""):
     print(f"Reading from file: {merged_file}\n")
     input_lines = read_transcript_file(merged_file)
 
@@ -103,11 +107,11 @@ def format_with_header(merged_file:str, output_file:str,header:str=""):
         print("No input lines found. Exiting.")
         return
 
-    merged_output = merge_speaker_lines(input_lines)
+    merged_output = merge_speaker_lines(input_lines,format=format)
 
     # Save the merged output to a file
-    with open(output_file, "a", encoding="utf-8") as f:
-        f.write(header)
+    with open(output_file, "w", encoding="utf-8") as f:
+        f.write(header+"\n")
         f.write("\n\n".join(merged_output))
 
     print(f"polished transcript saved to: {output_file}")
